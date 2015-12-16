@@ -26,4 +26,7 @@ public interface CreateOptions extends Options {
 	public String service();
 
 	public String packagename();
+
+	@Description("The properties that will be attached in created component, split with ','. sample: a1=v1,a2=v2")
+	public String properties();
 }

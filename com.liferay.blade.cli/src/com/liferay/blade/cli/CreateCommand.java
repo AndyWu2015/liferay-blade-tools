@@ -140,12 +140,25 @@ public class CreateCommand {
 
 		InputStream in = getClass().getResourceAsStream("/templates.zip");
 
-		copy(type, template.name(), workDir, in, glob, true, subs);
+
+
+		String propertyArg = options.properties();
+
+		String[] propertyArray;
+
+	    List<String> properties = null;
+
+		if(!isEmpty(propertyArg)){
+		    propertyArray = propertyArg.split( "," );
+		    properties = Arrays.asList( propertyArray );
+		}
+
+		copy(type, template.name(), workDir, in, glob, true, subs, properties);
 	}
 
 	private void copy(String type, String template, File workspaceDir,
 		InputStream in, Pattern glob, boolean overwrite,
-		Map<String, String> subs) throws Exception {
+		Map<String, String> subs, List<String> properties) throws Exception {
 
 		try (Jar jar = new Jar("dot", in)) {
 			for (Entry<String, Resource> e : jar.getResources().entrySet()) {
@@ -181,6 +194,10 @@ public class CreateCommand {
 					if (isTextFile(dest)) {
 						process(dest, subs);
 					}
+
+					if(isJavaFile(dest)) {
+					    addProperties(dest, properties);
+					}
 				}
 			}
 		}
@@ -199,12 +216,52 @@ public class CreateCommand {
 		}
 	}
 
-	private boolean isTextFile(File dest) {
-		String name = dest.getName();
+	private void addProperties( File dest , List<String> properties ) throws Exception {
 
-		return textExtensions.contains(
-			name.substring(name.lastIndexOf("."), name.length()));
-	}
+        if(properties == null || properties.size() < 1 )
+            return;
+
+        String content = new String(IO.read(dest));
+
+        String fontString = content.substring(0,content.indexOf( "property" ));
+
+        String endString = content.substring( content.indexOf( "}," )+2);
+
+        String property = content.substring( content.indexOf( "property" ), content.indexOf( "}," ) );
+
+        property = property.substring( property.indexOf( "{" )+1 );
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append( "property = {\n" );
+
+        if ( !isEmpty(property) ) {
+            property = property.substring(1);
+            property = property.substring(0, property.lastIndexOf( "\n\t" ));
+            property += ",\n";
+            sb.append( property );
+        }
+
+        for(String str : properties){
+            sb.append( "\t\t\""+str+"\",\n" );
+        }
+
+        sb.deleteCharAt( sb.toString().length()-2 );
+
+        sb.append("\t},");
+
+        StringBuilder all = new StringBuilder();
+
+        all.append(fontString);
+        all.append(sb.toString());
+        all.append( endString );
+
+        String newContent = all.toString();
+
+        if (!content.equals(newContent)) {
+            IO.write(newContent.getBytes(), dest);
+        }
+    }
 
 	private void addError(String prefix, String msg) {
 		_blade.addErrors(prefix, Collections.singleton(msg));
@@ -219,4 +276,18 @@ public class CreateCommand {
 
 	    return false;
 	}
+
+	private boolean isJavaFile(File dest) {
+        String name = dest.getName();
+
+        return name.substring(
+            name.lastIndexOf( "." ), name.length() ).equals( ".java" );
+    }
+
+	private boolean isTextFile(File dest) {
+        String name = dest.getName();
+
+        return textExtensions.contains(
+            name.substring(name.lastIndexOf("."), name.length()));
+    }
 }
